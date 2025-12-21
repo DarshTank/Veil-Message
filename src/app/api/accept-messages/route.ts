@@ -10,7 +10,6 @@ export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
 
   const user: User = session?.user as User;
-  //   const user = session?.user;
 
   if (!session || !session.user) {
     return Response.json(
@@ -56,7 +55,8 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     console.log(
-      "Fail to update user status to accept messages : accept-messages"
+      "Fail to update user status to accept messages : accept-messages",
+      error
     );
     return Response.json(
       {
@@ -69,13 +69,12 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET(request: Request) {
+export async function GET() {
   await dbConnect();
 
   const session = await getServerSession(authOptions);
 
   const user: User = session?.user as User;
-  //   const user = session?.user;
 
   if (!session || !session.user) {
     return Response.json(
@@ -111,7 +110,8 @@ export async function GET(request: Request) {
     );
   } catch (error) {
     console.log(
-      "Fail to update user status to accept messages : accept-messages"
+      "Error in getting message acceptance status : accept-messages",
+      error
     );
     return Response.json(
       {

@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
-import axios, { AxiosError } from "axios";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { Loader2 } from "lucide-react";
+import { Loader2, Send, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { CardHeader, CardContent, Card } from "@/components/ui/card";
+import { CardHeader, CardContent, Card, CardTitle } from "@/components/ui/card";
 import {
   Form,
   FormControl,
@@ -17,30 +17,24 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import * as z from "zod";
-import { ApiResponse } from "@/types/ApiResponse";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { MessageSchema } from "@/schemas/messageSchema";
+import { motion } from "framer-motion";
 
-const specialChar = "||";
+const SEPARATOR = "||";
 
-const parseStringMessages = (messageString: string = ""): string[] => {
-  console.log("Parsing messages:", messageString); // Debugging: Log the message string
-  return messageString.split(specialChar);
-};
+const parseMessages = (text = "") => text.split(SEPARATOR);
 
 const initialMessageString =
   "What's your favorite movie?||Do you have any pets?||What's your dream job?";
 
 export default function SendMessage() {
   const params = useParams<{ username: string }>();
-  if (!params) {
-    // Handle the case where params is null, e.g., show an error message or return early
-    return <div>Error: Username not found</div>;
-  }
-  const username = params.username;
+  const username = params?.username;
+  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof MessageSchema>>({
     resolver: zodResolver(MessageSchema),
@@ -48,35 +42,39 @@ export default function SendMessage() {
 
   const messageContent = form.watch("content");
 
-  const handleMessageClick = (message: string) => {
-    form.setValue("content", message);
-  };
-
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedMessages, setGeneratedMessages] =
-    useState(initialMessageString);
+  const [generatedMessages, setGeneratedMessages] = useState(
+    initialMessageString
+  );
   const [heading, setHeading] = useState(false);
+  const [publicProfile, setPublicProfile] = useState<{ bio: string } | null>(
+    null
+  );
+
+  useEffect(() => {
+    if (!username) return;
+
+    axios
+      .get(`/api/get-public-profile?username=${username}`)
+      .then((res) => setPublicProfile(res.data.user))
+      .catch(() => console.error("Failed to fetch public profile"));
+  }, [username]);
 
   const onSubmit = async (data: z.infer<typeof MessageSchema>) => {
     setIsLoading(true);
     try {
-      const response = await axios.post<ApiResponse>("/api/send-message", {
+      const res = await axios.post("/api/send-message", {
         ...data,
         username,
       });
 
-      toast({
-        title: response.data.message,
-        variant: "default",
-      });
-      form.reset({ ...form.getValues(), content: "" });
-    } catch (error) {
-      const axiosError = error as AxiosError<ApiResponse>;
+      toast({ title: res.data.message });
+      form.reset({ content: "" });
+    } catch {
       toast({
         title: "Error",
-        description:
-          axiosError.response?.data.message ?? "Failed to send message",
+        description: "Failed to send message",
         variant: "destructive",
       });
     } finally {
@@ -84,132 +82,144 @@ export default function SendMessage() {
     }
   };
 
+  // 🔥 Updated to match new API
   const generateQuestions = async () => {
     setIsGenerating(true);
     try {
-      const response = await axios.get<ApiResponse>("/api/suggest-questions");
+      const res = await axios.get("/api/suggest-questions");
 
-      // Check if the response data is valid JSON
-      if (response.data && typeof response.data === "object") {
-        console.log("API Response:", response.data); // Debugging: Log the API response
-        setGeneratedMessages(response.data.aitext);
-        setHeading(true);
-        toast({
-          title: "Questions Generated",
-          description: "New questions have been generated using AI.",
-          variant: "default",
-        });
+      let questions = "";
+      if (res.data.questions && Array.isArray(res.data.questions)) {
+        questions = res.data.questions.join(SEPARATOR);
       } else {
-        throw new Error("Invalid response format");
+        questions = res.data.aitext ?? initialMessageString;
       }
-    } catch (error) {
-      const axiosError = error as AxiosError<ApiResponse>;
-      if (axiosError.response?.status === 404) {
-        toast({
-          title: "Error",
-          description: "API endpoint not found.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description:
-            axiosError.response?.data.message ?? "Failed to generate questions",
-          variant: "destructive",
-        });
-      }
+
+      setGeneratedMessages(questions);
+      setHeading(true);
+
+      toast({
+        title: "Questions Generated",
+        description: "AI generated new questions for you.",
+      });
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to generate questions",
+        variant: "destructive",
+      });
     } finally {
       setIsGenerating(false);
     }
   };
 
   return (
-    <div className="container mx-auto my-8 p-6 bg-white rounded max-w-4xl">
-      <h1 className="text-4xl font-bold mb-6 text-center">
-        Public Profile Link
-      </h1>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <FormField
-            control={form.control}
-            name="content"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-1xl">Send Anonymous Message to <b> @{username}</b></FormLabel>
-                <FormControl>
-                  <Textarea
-                    placeholder="Write your anonymous message here"
-                    className="resize-none"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <div className="flex justify-center">
-            {isLoading ? (
-              <Button disabled>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Please wait
-              </Button>
-            ) : (
-              <Button type="submit" disabled={isLoading || !messageContent}>
-                Send It
-              </Button>
-            )}
-          </div>
-        </form>
-      </Form>
+    <div className="container mx-auto px-4 py-8 flex items-center justify-center">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-4xl space-y-8"
+      >
+        <h1 className="text-4xl font-bold text-center">Public Profile</h1>
 
-      <div className="space-y-4 my-8">
-        <div className="space-y-2">
-          <p>You can Also use this Default/AI-Generated messages insted :</p>
+        <div className="text-center">
+          <h2 className="text-2xl font-semibold">@{username}</h2>
+          <p className="italic text-muted-foreground">
+            {publicProfile?.bio || "No bio available."}
+          </p>
         </div>
+
         <Card>
-          <CardHeader className="bg-gray-800 mb-5 rounded">
-            <h3 className="text-xl font-semibold text-white">
-              {heading ? "AI Generated Text" : "Default Messages"}
-            </h3>
-          </CardHeader>
-          <CardContent className="flex flex-col space-y-4">
-            {parseStringMessages(generatedMessages).map((message, index) => (
-              <Button
-                className="bg-gray-100 hover:bg-gray-200 text-black"
-                key={index}
-                onClick={() => handleMessageClick(message)}
-              >
-                {message}
-              </Button>
-            ))}
+          <CardContent className="p-6">
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <FormField
+                  control={form.control}
+                  name="content"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Send an anonymous message</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          {...field}
+                          placeholder="Write your message..."
+                          className="min-h-[120px]"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <Button
+                  type="submit"
+                  disabled={isLoading || !messageContent}
+                  className="w-full"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="mr-2 h-4 w-4" />
+                      Send Message
+                    </>
+                  )}
+                </Button>
+              </form>
+            </Form>
           </CardContent>
         </Card>
-        <Button
-          onClick={() =>
-            !isGenerating
-              ? generateQuestions()
-              : parseStringMessages(initialMessageString)
-          }
-          disabled={isGenerating}
-          className="bg-blue-500 hover:bg-blue-600 text-white"
-        >
-          {isGenerating ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Generating...
-            </>
-          ) : (
-            "Generate Questions using AI"
-          )}
-        </Button>
-      </div>
-      <Separator className="my-6" />
-      <div className="text-center">
-        <div className="mb-4">Get Your Message Board</div>
-        <Link href={"/sign-up"}>
-          <Button>Create Your Account</Button>
-        </Link>
-      </div>
+
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <p className="text-muted-foreground">Need inspiration?</p>
+            <Button
+              onClick={generateQuestions}
+              disabled={isGenerating}
+              variant="outline"
+            >
+              {isGenerating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              Generate
+            </Button>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {heading ? "AI Generated Questions" : "Suggested Questions"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+              {parseMessages(generatedMessages).map((msg, i) => (
+                <Button
+                  key={i}
+                  variant="secondary"
+                  className="justify-start text-left"
+                  onClick={() => form.setValue("content", msg)}
+                >
+                  {msg}
+                </Button>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+
+        <Separator />
+
+        <div className="text-center">
+          <p className="mb-6">Want your own message board?</p>
+          <Link href="/sign-up">
+            <Button>Create Your Account</Button>
+          </Link>
+        </div>
+      </motion.div>
     </div>
   );
 }

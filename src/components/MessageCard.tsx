@@ -1,12 +1,11 @@
 "use client";
+
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,12 +18,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "./ui/button";
-import { X } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { Message } from "@/model/User.model";
 import { useToast } from "@/hooks/use-toast";
 import { ApiResponse } from "@/types/ApiResponse";
-import axios from "axios";
-import { Toast } from "./ui/toast";
+import axios, { AxiosError } from "axios";
 import dayjs from "dayjs";
 
 type MessageCardProps = {
@@ -33,94 +31,69 @@ type MessageCardProps = {
 };
 
 const MessageCard = ({ message, onMessageDelete }: MessageCardProps) => {
-  const toast = useToast();
+  const { toast } = useToast();
 
   const handleDeleteConfirm = async () => {
-    const response = await axios.delete<ApiResponse>(
-      `/api/delete-message/${message._id}` // Ensure correct URL formatting
-    );
-    Toast({
-      title: response.data.message,
-    });
-    onMessageDelete(message._id as any);
+    try {
+      const response = await axios.delete<ApiResponse>(
+        `/api/delete-message/${message._id}`
+      );
+      toast({
+        title: response.data.message,
+      });
+      onMessageDelete(message._id as string);
+    } catch (error) {
+      const axiosError = error as AxiosError<ApiResponse>;
+      toast({
+        title: "Error",
+        description:
+          axiosError.response?.data.message ?? "Failed to delete message",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
-    <Card className="card-bordered">
-      <CardHeader>
-        <div className="flex justify-between items-center">
-          <CardTitle className="text-2xl">{message.content}</CardTitle>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive">
-                <X className="w-5 h-5" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete
-                  this message.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDeleteConfirm}>
-                  Continue
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+    <Card className="glass-card border-none shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+      <CardHeader className="flex flex-row justify-between items-start space-y-0 pb-2">
+        <div className="flex flex-col gap-1">
+          <CardTitle className="text-xl font-semibold line-clamp-2 leading-tight">
+            {message.content}
+          </CardTitle>
+          <div className="text-xs text-muted-foreground font-medium">
+            {dayjs(message.createdAt).format("MMM D, YYYY • h:mm A")}
+          </div>
         </div>
-        <div className="text-sm">
-          {dayjs(message.createdAt).format("MMM D, YYYY h:mm A")}
-        </div>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-destructive hover:text-destructive/90 hover:bg-destructive/10 -mr-2 -mt-2 transition-colors"
+            >
+              <Trash2 className="w-5 h-5" />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent className="glass-card border-none">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Message?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete this
+                message from your dashboard.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="bg-background/50">Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive hover:bg-destructive/90">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardHeader>
-      <CardContent className="p-4 bg-white rounded-b-lg">
-        {/* {" "}
-        <CardDescription className="text-gray-700">
-          {message.content}
-          {" "}
-        </CardDescription> */}
+      <CardContent>
       </CardContent>
     </Card>
-    // <Card className="border rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
-    //   <CardHeader className="p-4 bg-gray-100 rounded-t-lg">
-    //     <div className="flex justify-between items-center">
-    //     <CardTitle className="text-lg font-semibold text-gray-800">
-    //       From a Mystery User
-    //     </CardTitle>
-    //     <AlertDialog>
-    //       <AlertDialogTrigger asChild>
-    //         <Button variant="destructive" className="hover:bg-red-600">
-    //           <X className="w-5 h-5 text-white" />
-    //         </Button>
-    //       </AlertDialogTrigger>
-    //       <AlertDialogContent>
-    //         <AlertDialogHeader>
-    //           <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-    //           <AlertDialogDescription>
-    //             This action cannot be undone. This will permanently delete your
-    //             message.
-    //           </AlertDialogDescription>
-    //         </AlertDialogHeader>
-    //         <AlertDialogFooter>
-    //           <AlertDialogCancel>Cancel</AlertDialogCancel>
-    //           <AlertDialogAction onClick={handleDeleteConfirm}>
-    //             Continue
-    //           </AlertDialogAction>
-    //         </AlertDialogFooter>
-    //       </AlertDialogContent>
-    //     </AlertDialog>
-    //   </CardHeader>
-    //   <CardContent className="p-4 bg-white rounded-b-lg">
-    //     <CardDescription className="text-gray-700">
-    //       {message.content}
-    //     </CardDescription>
-    //   </CardContent>
-    //   </div>
-    // </Card>
   );
 };
 

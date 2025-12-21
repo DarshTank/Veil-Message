@@ -1,4 +1,4 @@
-import { log } from "console";
+// import { log } from "console";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 

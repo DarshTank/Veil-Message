@@ -10,18 +10,19 @@ import { acceptMessageSchema } from "@/schemas/acceptMessageSchema";
 import { ApiResponse } from "@/types/ApiResponse";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios, { AxiosError } from "axios";
-import { Loader2, RefreshCcw } from "lucide-react";
+import { Loader2, RefreshCcw, Copy } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { motion } from "framer-motion";
 
 const Page = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSwitchLoading, setIsSwitchLoading] = useState(false);
-  const isInitialLoad = useRef(true); // Track initial load to prevent duplicate calls
+  const isInitialLoad = useRef(true);
 
-  const toast = useToast();
+  const { toast } = useToast();
   const { data: session, status } = useSession();
   const form = useForm({ resolver: zodResolver(acceptMessageSchema) });
   const { register, watch, setValue } = form;
@@ -29,9 +30,8 @@ const Page = () => {
   const acceptMessage = watch("acceptMessages");
 
   const fetchData = useCallback(async (refresh = false) => {
-    if (isLoading) return; // Prevent overlapping requests
+    if (isLoading) return;
     setIsLoading(true);
-    console.log("Fetching data..."); // Debugging: Track when request is made
 
     try {
       const [messagesResponse, acceptResponse] = await Promise.all([
@@ -43,14 +43,14 @@ const Page = () => {
       setValue("acceptMessages", acceptResponse.data.isAcceptingMessage ?? true);
 
       if (refresh) {
-        toast.toast({
+        toast({
           title: "Refreshed Messages",
           description: "Showing latest Messages",
         });
       }
     } catch (error) {
       const axiosError = error as AxiosError<ApiResponse>;
-      toast.toast({
+      toast({
         title: "Error",
         description:
           axiosError.response?.data.message || "Failed to fetch data",
@@ -62,14 +62,12 @@ const Page = () => {
   }, [setValue, toast, isLoading]);
 
   useEffect(() => {
-    // Only fetch data on first load
     if (status === "authenticated" && isInitialLoad.current) {
       isInitialLoad.current = false;
       fetchData();
     }
   }, [status, fetchData]);
 
-  // Handle switch change
   const handleSwitchChange = async () => {
     setIsSwitchLoading(true);
     try {
@@ -77,13 +75,13 @@ const Page = () => {
         acceptMessages: !acceptMessage,
       });
       setValue("acceptMessages", !acceptMessage);
-      toast.toast({
+      toast({
         title: response.data.message,
         variant: "default",
       });
     } catch (error) {
       const axiosError = error as AxiosError<ApiResponse>;
-      toast.toast({
+      toast({
         title: "Error",
         description:
           axiosError.response?.data.message || "Failed to update settings",
@@ -98,74 +96,117 @@ const Page = () => {
     const baseUrl = `${window.location.protocol}//${window.location.host}`;
     const profileUrl = `${baseUrl}/u/${session?.user?.username}`;
     navigator.clipboard.writeText(profileUrl);
-    toast.toast({
+    toast({
       title: "Profile URL copied",
       description: "Profile URL has been copied to clipboard",
     });
   };
 
   if (status === "loading") {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex justify-center items-center h-screen bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   if (status === "unauthenticated") {
-    return <div>Please Login</div>;
+    return (
+      <div className="flex justify-center items-center h-screen bg-background">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Please Login</h1>
+          <Button onClick={() => window.location.href = "/sign-in"}>Login</Button>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="my-8 mx-4 md:mx-8 lg:mx-auto p-6 bg-white rounded w-full max-w-6xl">
-      <h1 className="text-4xl font-bold mb-4">User Dashboard</h1>
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold mb-2">Copy Your URL Link</h2>
-        <div className="flex items-center">
-          <input
-            type="text"
-            value={`${window.location.protocol}//${window.location.host}/u/${session?.user?.username}`}
-            disabled
-            className="input input-bordered w-full p-2 mr-2"
-          />
-          <Button onClick={copyToClipboard}>Copy</Button>
-        </div>
-      </div>
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-6xl mx-auto space-y-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <h1 className="text-4xl font-bold mb-8 bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400">
+            User Dashboard
+          </h1>
 
-      <div className="mb-4 flex items-center">
-        <Switch
-          {...register("acceptMessages")}
-          checked={acceptMessage}
-          onCheckedChange={handleSwitchChange}
-          disabled={isSwitchLoading}
-        />
-        <span className="ml-2">
-          Accept Messages: {acceptMessage ? "On" : "Off"}
-        </span>
-      </div>
-      <Separator />
-      <Button
-        className="mt-4"
-        variant="outline"
-        onClick={() => fetchData(true)}
-        disabled={isLoading}
-      >
-        {isLoading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <RefreshCcw className="h-4 w-4" />
-        )}
-      </Button>
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-        {messages.length > 0 ? (
-          messages.map((message) => (
-            <MessageCard
-              key={message._id as any}
-              message={message}
-              onMessageDelete={(id) =>
-                setMessages(messages.filter((msg) => msg._id !== id))
-              }
-            />
-          ))
-        ) : (
-          <p>No Messages to Display</p>
-        )}
+          <div className="glass-card p-6 rounded-lg mb-8">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Copy className="h-5 w-5 text-primary" />
+              Copy Your Unique Link
+            </h2>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-grow">
+                <input
+                  type="text"
+                  value={`${window.location.protocol}//${window.location.host}/u/${session?.user?.username}`}
+                  disabled
+                  className="w-full p-3 pr-12 rounded-md bg-background/50 border border-input focus:ring-2 focus:ring-primary transition-all text-muted-foreground"
+                />
+              </div>
+              <Button onClick={copyToClipboard} className="shrink-0">
+                Copy
+              </Button>
+            </div>
+          </div>
+
+          <div className="glass-card p-6 rounded-lg mb-8 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Switch
+                {...register("acceptMessages")}
+                checked={acceptMessage}
+                onCheckedChange={handleSwitchChange}
+                disabled={isSwitchLoading}
+              />
+              <span className="font-medium">
+                Accept Messages: <span className={acceptMessage ? "text-green-500" : "text-red-500"}>{acceptMessage ? "On" : "Off"}</span>
+              </span>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => fetchData(true)}
+              disabled={isLoading}
+              className="gap-2"
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCcw className="h-4 w-4" />
+              )}
+              Refresh
+            </Button>
+          </div>
+        </motion.div>
+
+        <Separator className="my-8 opacity-50" />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {messages.length > 0 ? (
+            messages.map((message, index) => (
+              <motion.div
+                key={message._id as string}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: index * 0.1, duration: 0.3 }}
+              >
+                <MessageCard
+                  message={message}
+                  onMessageDelete={(id) =>
+                    setMessages(messages.filter((msg) => msg._id !== id))
+                  }
+                />
+              </motion.div>
+            ))
+          ) : (
+            <div className="col-span-full text-center py-12 text-muted-foreground">
+              <p className="text-xl">No messages yet.</p>
+              <p className="text-sm mt-2">Share your link to start receiving anonymous feedback!</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

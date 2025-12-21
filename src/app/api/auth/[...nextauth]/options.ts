@@ -17,13 +17,13 @@ export const authOptions: NextAuthOptions = {
         },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials: any): Promise<any> {
+      async authorize(credentials: Record<string, string> | undefined) {
         await dbConnect();
         try {
           const user = await UserModel.findOne({
             $or: [
-              { email: credentials.identifier },
-              { username: credentials.identifier },
+              { email: credentials?.identifier },
+              { username: credentials?.identifier },
             ],
           });
           if (!user) {
@@ -37,7 +37,7 @@ export const authOptions: NextAuthOptions = {
             );
           }
           const isPasswordCorrect = await bcrypt.compare(
-            credentials.password,
+            credentials?.password || "",
             user.password
           );
           if (isPasswordCorrect) {
@@ -45,8 +45,8 @@ export const authOptions: NextAuthOptions = {
           } else {
             throw new Error("Incorrect Password : options.ts");
           }
-        } catch (err: any) {
-          throw new Error(err);
+        } catch (err: unknown) {
+          throw new Error(err as string);
         }
       },
     }),
@@ -58,6 +58,7 @@ export const authOptions: NextAuthOptions = {
         token.isVerified = user.isVerified;
         token.isAcceptingMessages = user.isAcceptingMessages;
         token.username = user.username;
+        token.bio = user.bio;
       }
       return token;
     },
@@ -67,6 +68,7 @@ export const authOptions: NextAuthOptions = {
         session.user.isVerified = token.isVerified;
         session.user.isAcceptingMessages = token.isAcceptingMessages;
         session.user.username = token.username;
+        session.user.bio = token.bio;
       }
       return session;
     },

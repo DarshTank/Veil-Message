@@ -4,11 +4,30 @@ import bcrypt from "bcryptjs";
 import { sendVerificationEmail } from "@/helpers/sendVerificationEmail";
 import { NextResponse } from "next/server";
 
+import { signUpSchema } from "@/schemas/signUpSchema";
+
 export async function POST(request: Request) {
   await dbConnect();
 
   try {
-    const { username, email, password } = await request.json();
+    const body = await request.json();
+    const result = signUpSchema.safeParse(body);
+
+    if (!result.success) {
+      const errors = result.error.format();
+      console.log("Sign-up validation failed:", errors);
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Validation failed",
+          errors,
+        },
+        { status: 400 }
+      );
+    }
+
+    const { username, email, password } = result.data;
+    console.log("Processing sign-up for:", { username, email });
 
     // Check if a verified user exists by username
     const existingUserVerifiedByUsername = await UserModel.findOne({
@@ -16,6 +35,7 @@ export async function POST(request: Request) {
       isVerified: true,
     });
     if (existingUserVerifiedByUsername) {
+      console.log("Username already taken (verified):", username);
       return NextResponse.json(
         { success: false, message: "User already exists with that username" },
         { status: 400 }
@@ -30,6 +50,7 @@ export async function POST(request: Request) {
     if (existingUser) {
       // If the user exists and is already verified, return an error
       if (existingUser.isVerified) {
+        console.log("Email already taken (verified):", email);
         return NextResponse.json(
           { success: false, message: "User already exists with that email" },
           { status: 400 }
@@ -85,8 +106,19 @@ export async function POST(request: Request) {
       },
       { status: 201 }
     );
-  } catch (error) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (error: any) {
     console.error("Error Registering User:", error);
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      return NextResponse.json(
+        {
+          success: false,
+          message: `${field === "username" ? "Username" : "Email"} is already taken`,
+        },
+        { status: 400 }
+      );
+    }
     return NextResponse.json(
       {
         success: false,
