@@ -148,7 +148,7 @@ export default function Home() {
                             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/40 to-purple-500/40 animate-pulse" />
                             <span className="text-xs font-medium text-zinc-500 uppercase tracking-widest">{message.title}</span>
                           </div>
-                          <p className="text-zinc-300 font-medium leading-relaxed italic">"{message.content}"</p>
+                          <p className="text-zinc-300 font-medium leading-relaxed italic">{message.content}</p>
                         </div>
                         <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
                           <span className="text-[10px] text-zinc-600 font-bold uppercase">{message.received}</span>

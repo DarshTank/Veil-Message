@@ -24,9 +24,6 @@ const nextConfig: NextConfig = {
   images: {
     domains: ["images.unsplash.com", "res.cloudinary.com"],
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   // Disable type-checking during builds (not recommended for production)
   typescript: {
     ignoreBuildErrors: true,
