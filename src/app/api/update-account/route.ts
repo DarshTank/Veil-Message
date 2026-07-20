@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/options";
 import { User } from "next-auth";
 import bcrypt from "bcryptjs";
+import { encrypt, hashForLookup } from "@/lib/encryption";
 
 export async function POST(request: Request) {
   await dbConnect();
@@ -12,13 +13,14 @@ export async function POST(request: Request) {
   const user: User = session?.user as User;
 
   if (!session || !session.user) {
-    return Response.json(
-      {
-        success: false,
-        message: "Not Authenticated",
-      },
-      { status: 401 }
-    );
+    return Response.json({ success: false, message: "Not authenticated." }, { status: 401 });
+  }
+
+  if (user.role === "super-admin") {
+    return Response.json({
+      success: false,
+      message: "Administrators cannot change account details from the user dashboard.",
+    }, { status: 403 });
   }
 
   try {
@@ -26,79 +28,47 @@ export async function POST(request: Request) {
 
     const dbUser = await UserModel.findById(user._id);
     if (!dbUser) {
-      return Response.json(
-        {
-          success: false,
-          message: "User not found",
-        },
-        { status: 404 }
-      );
+      return Response.json({ success: false, message: "User not found." }, { status: 404 });
     }
 
-    // Verify OTP
-    const isCodeValid = dbUser.verifyCode === otp;
+    // Verify OTP (bcrypt compare)
     const isCodeNotExpired = new Date(dbUser.verifyCodeExpiry) > new Date();
+    const isCodeValid = await bcrypt.compare(otp, dbUser.verifyCode);
 
     if (!isCodeValid || !isCodeNotExpired) {
-      return Response.json(
-        {
-          success: false,
-          message: "Invalid or expired OTP",
-        },
-        { status: 400 }
-      );
+      return Response.json({ success: false, message: "Invalid or expired OTP." }, { status: 400 });
     }
 
-    // Update Field
     if (field === "username") {
-      const existingUser = await UserModel.findOne({ username: value });
-      if (existingUser) {
-        return Response.json(
-          { success: false, message: "Username already taken" },
-          { status: 400 }
-        );
+      const exists = await UserModel.findOne({ username: value });
+      if (exists) {
+        return Response.json({ success: false, message: "Username already taken." }, { status: 400 });
       }
       dbUser.username = value;
     } else if (field === "email") {
-        const existingUser = await UserModel.findOne({ email: value });
-        if (existingUser) {
-          return Response.json(
-            { success: false, message: "Email already taken" },
-            { status: 400 }
-          );
-        }
-      dbUser.email = value;
+      const newEmailHash = hashForLookup(value);
+      const exists = await UserModel.findOne({ emailHash: newEmailHash });
+      if (exists) {
+        return Response.json({ success: false, message: "Email already taken." }, { status: 400 });
+      }
+      dbUser.email = encrypt(value);
+      dbUser.emailHash = newEmailHash;
     } else if (field === "password") {
-      const hashedPassword = await bcrypt.hash(value, 10);
-      dbUser.password = hashedPassword;
+      dbUser.password = await bcrypt.hash(value, 10);
     } else {
-      return Response.json(
-        { success: false, message: "Invalid field" },
-        { status: 400 }
-      );
+      return Response.json({ success: false, message: "Invalid field." }, { status: 400 });
     }
 
-    // Clear OTP
-    // dbUser.verifyCode = ""; // Optional: Clear OTP after use
-    // dbUser.verifyCodeExpiry = new Date();
-
+    // Clear OTP after successful use
+    dbUser.verifyCode = "";
     await dbUser.save();
 
     return Response.json(
-      {
-        success: true,
-        message: `${field} updated successfully`,
-      },
+      { success: true, message: `${field} updated successfully.` },
       { status: 200 }
     );
   } catch (error) {
-    console.error("Error updating account", error);
-    return Response.json(
-      {
-        success: false,
-        message: "Error updating account",
-      },
-      { status: 500 }
-    );
+    console.error("Update account error:", error);
+    return Response.json({ success: false, message: "Error updating account." }, { status: 500 });
   }
 }

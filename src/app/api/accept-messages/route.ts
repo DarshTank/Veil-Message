@@ -3,6 +3,7 @@ import { authOptions } from "../auth/[...nextauth]/options";
 import dbConnect from "@/lib/dbConnect";
 import UserModel from "@/model/User.model";
 import { User } from "next-auth";
+import mongoose from "mongoose";
 
 export async function POST(request: Request) {
   await dbConnect();
@@ -11,17 +12,29 @@ export async function POST(request: Request) {
 
   const user: User = session?.user as User;
 
-  if (!session || !session.user) {
+  if (!session || !session.user || !user._id || !mongoose.Types.ObjectId.isValid(user._id as string)) {
     return Response.json(
       {
         success: false,
-        message: "Not Auhenticated : accept-messages",
+        message: "Not Authenticated : accept-messages",
       },
       { status: 401 }
     );
   }
 
   const userID = user._id;
+
+  if (user.role === "super-admin") {
+    return Response.json(
+      {
+        success: true,
+        message: "Message Acceptance status updated successfully (Admins cannot accept messages).",
+        updatedUser: { isAcceptingMessage: false }
+      },
+      { status: 200 }
+    );
+  }
+
   const { acceptMessages } = await request.json();
 
   try {
@@ -76,17 +89,28 @@ export async function GET() {
 
   const user: User = session?.user as User;
 
-  if (!session || !session.user) {
+  if (!session || !session.user || !user._id || !mongoose.Types.ObjectId.isValid(user._id as string)) {
     return Response.json(
       {
         success: false,
-        message: "Not Auhenticated : accept-messages",
+        message: "Not Authenticated : accept-messages",
       },
       { status: 401 }
     );
   }
 
   const userID = user._id;
+
+  if (user.role === "super-admin") {
+    return Response.json(
+      {
+        success: true,
+        isAcceptingMessage: false,
+        isAcceptingMessages: false,
+      },
+      { status: 200 }
+    );
+  }
 
   try {
     const foundUser = await UserModel.findById(userID);
@@ -104,6 +128,8 @@ export async function GET() {
     return Response.json(
       {
         success: true,
+        // Return both forms for compatibility
+        isAcceptingMessage: foundUser.isAcceptingMessage,
         isAcceptingMessages: foundUser.isAcceptingMessage,
       },
       { status: 200 }

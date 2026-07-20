@@ -1,9 +1,11 @@
-// app/layout.tsx (Root Layout)
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import AuthProvider from "@/context/AuthProvider";
+import { E2eeProvider } from "@/context/E2eeContext";
 import Navbar from "@/components/Navbar";
 import DynamicBackground from "@/components/DynamicBackground";
+import { Toaster } from "@/components/ui/toaster";
+import InspectProtectionGuard from "@/components/InspectProtectionGuard";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -11,7 +13,7 @@ const geistSans = Geist({
   subsets: ["latin"],
   display: "swap",
   preload: true,
-});
+  });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -41,10 +43,14 @@ export default function RootLayout({
       >
         <DynamicBackground />
         <AuthProvider>
-          <Navbar />
-          <div className="pt-20"> {/* Add padding for fixed navbar */}
-            {children}
-          </div>
+          <InspectProtectionGuard />
+          <E2eeProvider>
+            <Navbar />
+            <div className="pt-14 pb-20 md:pb-0 min-h-[calc(100dvh-3.5rem)]">
+              {children}
+            </div>
+            <Toaster />
+          </E2eeProvider>
         </AuthProvider>
       </body>
     </html>

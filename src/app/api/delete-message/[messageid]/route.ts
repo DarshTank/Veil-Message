@@ -4,12 +4,13 @@ import dbConnect from "@/lib/dbConnect";
 import UserModel from "@/model/User.model";
 import { NextRequest, NextResponse } from "next/server";
 import type { User } from "next-auth";
+import { deleteAudioBlobs } from "@/lib/deleteAudioBlob";
 
 export async function DELETE(
   request: NextRequest,
-  context: { params: { messageid?: string } }
+  context: { params: Promise<{ messageid?: string }> }
 ): Promise<NextResponse> {
-  const { params } = context;
+  const params = await context.params;
 
   // Validate message ID parameter
   if (!params?.messageid) {
@@ -42,6 +43,18 @@ export async function DELETE(
   }
 
   try {
+    // Check if message has an audioUrl and delete from Vercel Blob
+    const targetUser = await UserModel.findOne(
+      { _id: user._id, "messages._id": params.messageid },
+      { "messages.$": 1 }
+    );
+    if (targetUser && Array.isArray(targetUser.messages) && targetUser.messages.length > 0) {
+      const msgToDelete = targetUser.messages[0];
+      if (msgToDelete?.audioUrl) {
+        await deleteAudioBlobs([msgToDelete.audioUrl]);
+      }
+    }
+
     // Update the user document by pulling the message with the given messageid from the messages array
     const updateResult = await UserModel.updateOne(
       { _id: user._id },

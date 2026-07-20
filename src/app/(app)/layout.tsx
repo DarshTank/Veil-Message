@@ -8,9 +8,9 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <section className="flex">
+    <section className="flex w-full">
       {/* <Navbar /> */}
-      <main className="flex-grow p-4">{children}</main>
+      <main className="flex-grow w-full">{children}</main>
     </section>
   );
 }

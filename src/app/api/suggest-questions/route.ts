@@ -1,46 +1,49 @@
-import { NextResponse } from 'next/server';
-import { GoogleGenAI } from "@google/genai";
+import { NextResponse } from "next/server";
+import { createGroqChatCompletion } from "@/lib/groqClient";
 
 export async function GET() {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "API Key not configured" }, { status: 500 });
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
-  
-  const prompt = `Create a list of three open-ended and engaging questions formatted as a single string. 
-Each question should be separated by '||'. 
-These questions are for an anonymous social messaging platform like Qooh.me. 
-Avoid personal or sensitive topics and focus on universal, friendly themes. 
-Ensure questions are different each time. 
-Do not include any other text in the response, just the questions.`;
-
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
-        temperature: 0.9,
-        topK: 40,
-        topP: 0.95,
-      }
+    const response = await createGroqChatCompletion({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        {
+          role: "user",
+          content: `Generate exactly 3 open-ended, engaging questions for an anonymous social messaging platform.
+Return ONLY a JSON object with this structure:
+{"questions": ["question 1", "question 2", "question 3"]}
+
+Rules:
+- Questions must be fun, friendly, and universally relatable
+- Avoid personal, sensitive, or controversial topics
+- Each question should be different in theme
+- No numbering, no extra text — just the JSON`,
+        },
+      ],
+      temperature: 0.9,
+      max_tokens: 200,
+      response_format: { type: "json_object" },
     });
 
-    const resultText = response.text || "";
-    // Parse the response using the requested delimiter
-    let questions = resultText.split('||').map(q => q.trim()).filter(q => q.length > 0);
-    
-    // Fallback logic if delimiter is ignored
-    if (questions.length <= 1) {
-      questions = resultText.split('\n')
-        .map(q => q.replace(/^\d+\.\s*|-\s*/, '').trim())
-        .filter(q => q.length > 0);
-    }
+    const raw = response.choices[0]?.message?.content ?? "{}";
+    const parsed = JSON.parse(raw) as { questions?: string[] };
 
-    return NextResponse.json({ questions: questions.slice(0, 3) });
+    const questions = Array.isArray(parsed.questions)
+      ? parsed.questions.slice(0, 3)
+      : ["What's a skill you wish you had?", "What's your go-to comfort show?", "If you could travel anywhere tomorrow, where?"];
+
+    return NextResponse.json({ success: true, questions });
   } catch (error) {
-    console.error("Gemini Route Error:", error);
-    return NextResponse.json({ error: "Failed to generate questions" }, { status: 500 });
+    console.error("Suggest questions error:", error);
+    return NextResponse.json(
+      {
+        success: true,
+        questions: [
+          "What's a skill you wish you had?",
+          "What's your go-to comfort show?",
+          "If you could travel anywhere tomorrow, where?",
+        ],
+      },
+      { status: 200 }
+    );
   }
 }
